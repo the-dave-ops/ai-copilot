@@ -250,8 +250,26 @@ export function ToolCard({
       >[];
     }
     if (typeof unwrapped === 'object' && unwrapped !== null) {
-      for (const key of ['projects', 'data', 'releases', 'devices', 'groups', 'maps', 'items']) {
-        const candidate = (unwrapped as Record<string, unknown>)[key];
+      const obj = unwrapped as Record<string, unknown>;
+      // Support key-value maps like Hebcal Zmanim `times: { alotHaShachar: "...", ... }`
+      if (
+        typeof obj.times === 'object' &&
+        obj.times !== null &&
+        !Array.isArray(obj.times) &&
+        Object.keys(obj.times as Record<string, unknown>).length > 0
+      ) {
+        const locTitle =
+          typeof obj.location === 'object' && obj.location !== null
+            ? String((obj.location as Record<string, unknown>).title ?? '')
+            : '';
+        return Object.entries(obj.times as Record<string, unknown>).map(([k, v]) => ({
+          halachicTime: k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()),
+          time: String(v),
+          ...(locTitle ? { location: locTitle } : {}),
+        }));
+      }
+      for (const key of ['items', 'projects', 'data', 'releases', 'devices', 'groups', 'maps']) {
+        const candidate = obj[key];
         if (Array.isArray(candidate)) {
           return candidate.filter((r) => typeof r === 'object' && r !== null) as Record<
             string,
@@ -259,7 +277,7 @@ export function ToolCard({
           >[];
         }
       }
-      for (const val of Object.values(unwrapped as Record<string, unknown>)) {
+      for (const val of Object.values(obj)) {
         if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
           return val as Record<string, unknown>[];
         }

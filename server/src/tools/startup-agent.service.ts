@@ -60,6 +60,7 @@ interface RawParameter {
 interface RawSchema {
   type?: string;
   enum?: unknown[];
+  default?: unknown;
   items?: RawSchema;
   properties?: Record<string, RawSchema>;
   required?: string[];
@@ -98,6 +99,8 @@ const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
 const COMMON_SPEC_PATHS = [
   '/openapi.json',
   '/openapi.yaml',
+  '/api-docs/openapi.json',
+  '/api-docs/openapi.yaml',
   '/api-json',
   '/api-yaml',
   '/swagger.json',
@@ -189,8 +192,8 @@ export class StartupAgentService implements OnModuleInit {
       try {
         const raw = readFileSync(configPath, 'utf8');
         const parsed = JSON.parse(raw) as GeneratedApiConfig;
-        const baseMatches = !parsed.apiBaseUrl || parsed.apiBaseUrl === apiBaseUrl;
-        const sourceMatches = !parsed.specSource || parsed.specSource === specSource;
+        const baseMatches = Boolean(parsed.apiBaseUrl && parsed.apiBaseUrl === apiBaseUrl);
+        const sourceMatches = Boolean(parsed.specSource && parsed.specSource === specSource);
         if (parsed && Array.isArray(parsed.tools) && parsed.tools.length > 0 && baseMatches && sourceMatches) {
           this.cachedConfig = parsed;
           this.logger.log(
@@ -633,12 +636,21 @@ export class StartupAgentService implements OnModuleInit {
             items: p.items,
           };
           const mapped = this.mapSchemaType(spec, pSchema);
+          const resolvedPSchema = this.resolveSchema(spec, pSchema);
+          const rawDefault = resolvedPSchema?.default;
+          const defaultValue =
+            typeof rawDefault === 'string' ||
+            typeof rawDefault === 'number' ||
+            typeof rawDefault === 'boolean'
+              ? rawDefault
+              : undefined;
           params.push({
             name: p.name,
             in: p.in,
             type: mapped.type,
             ...(mapped.itemType ? { itemType: mapped.itemType } : {}),
             ...(mapped.enum && mapped.enum.length > 0 ? { enum: mapped.enum } : {}),
+            ...(defaultValue !== undefined ? { defaultValue } : {}),
             required: p.in === 'path' ? true : Boolean(p.required),
             description: p.description || pSchema?.description,
           });

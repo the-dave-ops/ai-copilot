@@ -8,6 +8,7 @@ export interface GeneratedToolParamSpec {
   type: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object';
   itemType?: 'string' | 'number' | 'integer' | 'boolean';
   enum?: string[];
+  defaultValue?: string | number | boolean;
   required?: boolean;
   nullable?: boolean;
   description?: string;
@@ -178,6 +179,8 @@ export function buildToolSpecFromGenerated(gen: GeneratedToolSpec): ToolSpec<Rec
       for (const p of queryParams) {
         if (args[p.name] !== undefined) {
           query[p.name] = args[p.name];
+        } else if (p.defaultValue !== undefined && p.required) {
+          query[p.name] = p.defaultValue;
         }
       }
 
