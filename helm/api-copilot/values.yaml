@@ -1,0 +1,73 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/your-org/api-copilot
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: chat.example.com
+  tls:
+    enabled: true
+    secretName: api-copilot-tls
+
+# Persistent storage for the startup agent's generated tools & slash menu
+persistence:
+  enabled: true
+  size: 100Mi
+  accessMode: ReadWriteOnce
+  storageClass: ""
+
+# Non-secret env (ConfigMap)
+config:
+  appBaseUrl: "https://chat.example.com"
+  apiBaseUrl: "https://api.example.com"
+  openApiSpecUrl: "https://api.example.com/openapi.json"
+  openApiSpecPath: ""
+  toolsDataDir: "/app/generated"
+  startupAgentEnabled: "true"
+  forceRegenerateTools: "false"
+  startupAgentMinEndpoints: "15"
+  startupAgentMaxEndpoints: "25"
+  apiKeyHeader: "X-API-Key"
+  apiLoginPath: ""
+  oauth2TokenUrl: ""
+  dashboardBaseUrl: ""
+  # Optional OIDC SSO (leave keycloakIssuerUrl empty to use Bearer / API Key / Basic / OAuth2 in UI)
+  keycloakIssuerUrl: ""
+  keycloakClientId: ""
+  keycloakScope: "openid profile email"
+  keycloakInternalUrl: ""
+  llmBaseUrl: "https://api.openai.com/v1"
+  llmModel: "gpt-4o"
+  redisUrl: "redis://redis.redis.svc:6379"
+  maxToolSteps: "8"
+  maxToolResultChars: "8000"
+  chatRateLimitPerMinute: "20"
+  chatRequestTimeoutMs: "120000"
+  apiTimeoutMs: "15000"
+  sessionTtlSeconds: "28800"
+  sessionCookieSecure: "auto"
+  enableTokenExchange: "false"
+  tokenExchangeAudience: ""
+
+# Optional custom system prompt override (if false, uses the Startup Agent's generated prompt)
+customSystemPrompt:
+  enabled: false
+  content: ""
+
+# Secrets (created as a Secret; prefer external-secrets/CSI in production)
+secrets:
+  sessionSecret: ""          # required: openssl rand -hex 32
+  keycloakClientSecret: ""   # optional unless keycloakIssuerUrl is set
+  llmApiKey: ""
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: "1", memory: 512Mi }

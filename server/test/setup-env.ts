@@ -1,0 +1,11 @@
+process.env.APP_BASE_URL = 'http://localhost:3000';
+process.env.SESSION_SECRET = 'e2e-session-secret-0123456789abcdef';
+process.env.REDIS_URL = 'redis://localhost:6379';
+process.env.KEYCLOAK_ISSUER_URL = 'http://localhost:8080/realms/getapp';
+process.env.KEYCLOAK_CLIENT_ID = 'dashboard-gpt';
+process.env.KEYCLOAK_CLIENT_SECRET = 'dev-secret';
+process.env.API_BASE_URL = 'http://api.test';
+process.env.LLM_BASE_URL = 'http://llm.test/v1';
+process.env.LLM_MODEL = 'mock';
+process.env.SESSION_COOKIE_SECURE = 'never';
+process.env.STARTUP_AGENT_ENABLED = 'false';

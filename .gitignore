@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+coverage/
+.DS_Store
+keycloak/data/
+
+# built frontend output
+server/public/
+generated/
+server/generated/
+*.zip
+*.tar
+

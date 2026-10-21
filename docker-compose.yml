@@ -1,0 +1,66 @@
+name: api-copilot
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports:
+      - "8080:8080"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-session-secret-0123456789abcdef}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-never}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      KEYCLOAK_ISSUER_URL: ${KEYCLOAK_ISSUER_URL:-http://localhost:8080/realms/getapp}
+      KEYCLOAK_INTERNAL_URL: ${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-dashboard-gpt}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-dev-secret}
+      API_BASE_URL: ${API_BASE_URL:-https://fakerestapi.azurewebsites.net}
+      OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://fakerestapi.azurewebsites.net/swagger/v1/swagger.json}
+      OPENAPI_SPEC_PATH: ${OPENAPI_SPEC_PATH:-}
+      TOOLS_DATA_DIR: /app/generated
+      STARTUP_AGENT_ENABLED: ${STARTUP_AGENT_ENABLED:-true}
+      STARTUP_AGENT_MIN_ENDPOINTS: ${STARTUP_AGENT_MIN_ENDPOINTS:-15}
+      STARTUP_AGENT_MAX_ENDPOINTS: ${STARTUP_AGENT_MAX_ENDPOINTS:-25}
+      API_TIMEOUT_MS: ${API_TIMEOUT_MS:-15000}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-28800}
+      MAX_TOOL_STEPS: ${MAX_TOOL_STEPS:-8}
+      MAX_TOOL_RESULT_CHARS: ${MAX_TOOL_RESULT_CHARS:-8000}
+      CHAT_RATE_LIMIT_PER_MINUTE: ${CHAT_RATE_LIMIT_PER_MINUTE:-20}
+      CHAT_REQUEST_TIMEOUT_MS: ${CHAT_REQUEST_TIMEOUT_MS:-120000}
+      ENABLE_TOKEN_EXCHANGE: ${ENABLE_TOKEN_EXCHANGE:-false}
+    volumes:
+      - ./generated:/app/generated
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

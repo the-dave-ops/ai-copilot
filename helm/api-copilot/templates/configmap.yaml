@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "api-copilot.fullname" . }}
+  labels: {{- include "api-copilot.labels" . | nindent 4 }}
+data:
+  APP_BASE_URL: {{ .Values.config.appBaseUrl | quote }}
+  API_BASE_URL: {{ .Values.config.apiBaseUrl | quote }}
+  TOOLS_DATA_DIR: {{ .Values.config.toolsDataDir | default "/app/generated" | quote }}
+  STARTUP_AGENT_ENABLED: {{ .Values.config.startupAgentEnabled | default "true" | quote }}
+  FORCE_REGENERATE_TOOLS: {{ .Values.config.forceRegenerateTools | default "false" | quote }}
+  STARTUP_AGENT_MIN_ENDPOINTS: {{ .Values.config.startupAgentMinEndpoints | default "15" | quote }}
+  STARTUP_AGENT_MAX_ENDPOINTS: {{ .Values.config.startupAgentMaxEndpoints | default "25" | quote }}
+  API_KEY_HEADER: {{ .Values.config.apiKeyHeader | default "X-API-Key" | quote }}
+  LLM_BASE_URL: {{ .Values.config.llmBaseUrl | quote }}
+  LLM_MODEL: {{ .Values.config.llmModel | quote }}
+  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  MAX_TOOL_STEPS: {{ .Values.config.maxToolSteps | quote }}
+  MAX_TOOL_RESULT_CHARS: {{ .Values.config.maxToolResultChars | quote }}
+  CHAT_RATE_LIMIT_PER_MINUTE: {{ .Values.config.chatRateLimitPerMinute | quote }}
+  CHAT_REQUEST_TIMEOUT_MS: {{ .Values.config.chatRequestTimeoutMs | quote }}
+  API_TIMEOUT_MS: {{ .Values.config.apiTimeoutMs | quote }}
+  SESSION_TTL_SECONDS: {{ .Values.config.sessionTtlSeconds | quote }}
+  SESSION_COOKIE_SECURE: {{ .Values.config.sessionCookieSecure | quote }}
+  ENABLE_TOKEN_EXCHANGE: {{ .Values.config.enableTokenExchange | quote }}
+  TOKEN_EXCHANGE_AUDIENCE: {{ .Values.config.tokenExchangeAudience | quote }}
+  {{- if .Values.config.openApiSpecUrl }}
+  OPENAPI_SPEC_URL: {{ .Values.config.openApiSpecUrl | quote }}
+  {{- end }}
+  {{- if .Values.config.openApiSpecPath }}
+  OPENAPI_SPEC_PATH: {{ .Values.config.openApiSpecPath | quote }}
+  {{- end }}
+  {{- if .Values.config.apiLoginPath }}
+  API_LOGIN_PATH: {{ .Values.config.apiLoginPath | quote }}
+  {{- end }}
+  {{- if .Values.config.oauth2TokenUrl }}
+  OAUTH2_TOKEN_URL: {{ .Values.config.oauth2TokenUrl | quote }}
+  {{- end }}
+  {{- if .Values.config.dashboardBaseUrl }}
+  DASHBOARD_BASE_URL: {{ .Values.config.dashboardBaseUrl | quote }}
+  {{- end }}
+  {{- if .Values.config.keycloakIssuerUrl }}
+  KEYCLOAK_ISSUER_URL: {{ .Values.config.keycloakIssuerUrl | quote }}
+  KEYCLOAK_CLIENT_ID: {{ .Values.config.keycloakClientId | quote }}
+  KEYCLOAK_SCOPE: {{ .Values.config.keycloakScope | quote }}
+  {{- end }}
+  {{- if .Values.config.keycloakInternalUrl }}
+  KEYCLOAK_INTERNAL_URL: {{ .Values.config.keycloakInternalUrl | quote }}
+  {{- end }}
+  {{- if .Values.customSystemPrompt.enabled }}
+  SYSTEM_PROMPT_FILE: "/etc/api-copilot/system-prompt.txt"
+  {{- end }}

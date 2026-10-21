@@ -1,0 +1,20 @@
+{
+  "name": "api-copilot",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "Self-configuring AI chat copilot that inspects any OpenAPI/Swagger API, builds tools & slash commands on first startup, and operates the API using the user's own credentials",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix web install",
+    "dev": "npm --prefix server run start:dev",
+    "dev:web": "npm --prefix web run dev",
+    "build": "npm --prefix web run build && npm --prefix server run build",
+    "start": "npm --prefix server run start",
+    "test": "npm --prefix server test",
+    "test:e2e": "npm --prefix server run test:e2e",
+    "gen:tools": "tsx scripts/generate-tools-from-openapi.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "yaml": "^2.9.1"
+  }
+}

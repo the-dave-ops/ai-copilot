@@ -1,0 +1,6 @@
+apiVersion: v2
+name: api-copilot
+description: Self-configuring AI chat copilot that inspects any OpenAPI/Swagger API, builds tools & slash commands on startup, and operates the API using user credentials
+type: application
+version: 0.2.0
+appVersion: "0.2.0"

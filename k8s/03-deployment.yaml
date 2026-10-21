@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-copilot
+  namespace: api-copilot
+  labels: { app: api-copilot }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: api-copilot }
+  template:
+    metadata:
+      labels: { app: api-copilot }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      volumes:
+        - name: generated-tools
+          persistentVolumeClaim:
+            claimName: api-copilot-generated
+      containers:
+        - name: app
+          image: ghcr.io/your-org/api-copilot:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: api-copilot }
+            - secretRef: { name: api-copilot }
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: generated-tools
+              mountPath: /app/generated
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 512Mi }

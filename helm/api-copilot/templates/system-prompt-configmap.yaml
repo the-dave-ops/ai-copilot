@@ -1,0 +1,10 @@
+{{- if .Values.customSystemPrompt.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "api-copilot.fullname" . }}-system-prompt
+  labels: {{- include "api-copilot.labels" . | nindent 4 }}
+data:
+  system-prompt.txt: |
+{{ .Values.customSystemPrompt.content | indent 4 }}
+{{- end }}

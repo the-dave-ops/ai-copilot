@@ -1,0 +1,50 @@
+{
+  "name": "api-copilot-server",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "test": "jest --config test/jest-unit.json && jest --config test/jest-e2e.json",
+    "test:unit": "jest --config test/jest-unit.json",
+    "test:e2e": "jest --config test/jest-e2e.json"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.71",
+    "@nestjs/common": "^12.1.3",
+    "@nestjs/config": "^12.0.1",
+    "@nestjs/core": "^12.1.3",
+    "@nestjs/platform-express": "^12.1.3",
+    "@nestjs/serve-static": "^12.0.0",
+    "@nestjs/throttler": "^6.7.1",
+    "ai": "^7.0.143",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "connect-redis": "^10.0.0",
+    "express-session": "^1.19.0",
+    "nestjs-pino": "^5.3.1",
+    "openid-client": "^6.8.8",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
+    "redis": "^6.3.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.8",
+    "@nestjs/testing": "^12.1.3",
+    "@swc/core": "^1.16.18",
+    "@swc/jest": "^0.2.39",
+    "@types/express-session": "^1.19.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.5",
+    "@types/supertest": "^7.2.1",
+    "jest": "^30.5.2",
+    "pino-pretty": "^13.2.0",
+    "supertest": "^7.3.1",
+    "typescript": "~5.9.3"
+  }
+}
