@@ -119,6 +119,7 @@ code, pre {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .brand-logo-mark {
@@ -145,6 +146,14 @@ code, pre {
   font-size: 0.94rem;
   letter-spacing: -0.01em;
   white-space: nowrap;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 1100px) {
+  .topbar .title {
+    max-width: 180px;
+  }
 }
 
 .brand-tag {
@@ -233,10 +242,51 @@ code, pre {
 
 .topbar-btn.icon-only {
   padding: 0 8px;
+  position: relative;
 }
 
-.nav-count,
-.pill-counter {
+.topbar-icon-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+}
+.topbar-icon-group .topbar-btn {
+  border: none;
+  background: transparent;
+  height: 28px;
+}
+.topbar-icon-group .topbar-btn:hover {
+  background: var(--panel-hover);
+}
+.topbar-icon-group .topbar-btn.active {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.icon-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--panel);
+  pointer-events: none;
+}
+
+.nav-count {
   font-size: 0.69rem;
   font-weight: 600;
   padding: 1px 6px;
@@ -252,23 +302,6 @@ code, pre {
   gap: 7px;
 }
 
-.topbar-divider {
-  width: 1px;
-  height: 20px;
-  background: var(--border);
-  margin: 0 2px;
-}
-
-.user-session-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 6px 3px 5px;
-  border-radius: 9px;
-  background: var(--panel-elev);
-  border: 1px solid var(--border);
-}
-
 .user-avatar {
   width: 24px;
   height: 24px;
@@ -281,52 +314,161 @@ code, pre {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+.user-avatar.large {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 0.95rem;
 }
 
-.user-meta {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
+/* ── User Account Dropdown ────────────────────────────────────────────────── */
+.user-menu-wrap {
+  position: relative;
 }
-@media (max-width: 720px) {
-  .user-meta {
-    display: none;
+
+.user-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 8px 0 4px;
+  border-radius: 9px;
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.user-menu-trigger:hover,
+.user-menu-trigger.active {
+  border-color: var(--accent);
+  background: var(--panel-hover);
+}
+
+.user-menu-chevron {
+  transition: transform 0.18s ease;
+}
+.user-menu-chevron.open {
+  transform: rotate(180deg);
+}
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  cursor: default;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 248px;
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 40;
+  overflow: hidden;
+  animation: dropdownIn 0.14s ease;
+}
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-.user-name {
-  font-size: 0.76rem;
-  font-weight: 600;
+.user-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.user-dropdown-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.user-dropdown-name {
+  font-size: 0.82rem;
+  font-weight: 650;
   color: var(--text);
-  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.user-auth-protocol {
-  font-size: 0.65rem;
+.user-dropdown-auth {
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  font-weight: 600;
 }
 
-.logout-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+.user-dropdown-items {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.logout-icon-btn:hover {
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.dropdown-item:hover {
+  background: var(--panel-hover);
+}
+.dropdown-item svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.dropdown-item.danger {
   color: var(--danger);
-  background: rgba(239, 83, 80, 0.12);
+}
+.dropdown-item.danger svg {
+  color: var(--danger);
+}
+.dropdown-item.danger:hover {
+  background: rgba(239, 83, 80, 0.1);
+}
+
+.dropdown-item-value {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .topbar-btn-label {
+    display: none;
+  }
 }
 
 /* ── HTTP Method Badges ───────────────────────────────────────────────────── */

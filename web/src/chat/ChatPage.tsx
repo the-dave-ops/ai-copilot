@@ -130,14 +130,21 @@ interface DynamicApiConfigResponse {
 
 function interpolateTemplate(tpl: string, values: Record<string, string>): string {
   return tpl
+    .replace(/\{\{#([a-zA-Z0-9_]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, k: string, inner: string) =>
+      values[k]?.trim() ? interpolateTemplate(inner, values) : '',
+    )
     .replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, k: string) => values[k] ?? '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 function hydrateSlashCommand(spec: SlashCommandSpec): SlashCommandSpec {
+  const cleanPrompt = spec.prompt
+    ? spec.prompt.replace(/for\s+\{\{arg\}\}\.?/gi, 'for a city or date (ask me which one if needed).').replace(/\{\{arg\}\}/g, '').replace(/\s+/g, ' ').trim()
+    : undefined;
   return {
     ...spec,
+    prompt: cleanPrompt,
     buildPrompt:
       spec.buildPrompt ??
       (spec.promptTemplate
@@ -154,7 +161,9 @@ function hydrateSlashCommand(spec: SlashCommandSpec): SlashCommandSpec {
       spec.inlineArgPrompt ??
       (spec.inlineArgPromptTemplate
         ? (arg) => interpolateTemplate(spec.inlineArgPromptTemplate!, { arg })
-        : undefined),
+        : spec.prompt?.includes('{{arg}}')
+          ? (arg) => interpolateTemplate(spec.prompt!, { arg })
+          : undefined),
   };
 }
 
@@ -656,6 +665,7 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
   const [catalogSearch, setCatalogSearch] = useState('');
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [showJumpBottom, setShowJumpBottom] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [slashCommands, setSlashCommands] = useState<SlashCommandSpec[]>(SLASH_COMMANDS);
   const [starterCards, setStarterCards] = useState(STARTER_CARDS);
   const [apiTitle, setApiTitle] = useState('API');
@@ -754,7 +764,8 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
         e.preventDefault();
         textareaRef.current?.focus();
       } else if (e.key === 'Escape') {
-        if (showCatalog) setShowCatalog(false);
+        if (showUserMenu) setShowUserMenu(false);
+        else if (showCatalog) setShowCatalog(false);
         else if (showAudit) setShowAudit(false);
         else if (showSidebar) setShowSidebar(false);
         else if (busy) void stop();
@@ -762,7 +773,7 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [busy, showAudit, showCatalog, showSidebar, stop]);
+  }, [busy, showAudit, showCatalog, showSidebar, showUserMenu, stop]);
 
   const handleScroll = () => {
     const el = listRef.current;
@@ -781,6 +792,7 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
   const openAuditDrawer = async () => {
     setShowSidebar(false);
     setShowCatalog(false);
+    setShowUserMenu(false);
     setShowAudit((v) => !v);
     try {
       const res = await fetch('/api/audit');
@@ -796,7 +808,18 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
   const openCatalogDrawer = () => {
     setShowSidebar(false);
     setShowAudit(false);
+    setShowUserMenu(false);
     setShowCatalog((v) => !v);
+  };
+
+  const handleLogout = () => {
+    setShowUserMenu(false);
+    void fetch('/auth/logout', { method: 'POST' })
+      .catch(() => {})
+      .finally(() => {
+        if (onLogout) onLogout();
+        else window.location.href = '/';
+      });
   };
 
   const handleNewChat = () => {
@@ -1051,97 +1074,136 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
           </div>
 
           <div className="topbar-actions">
-            <button
-              type="button"
-              className={`topbar-btn ${showCatalog ? 'active' : ''}`}
-              onClick={openCatalogDrawer}
-              title="Browse discovered API endpoints & tools"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="16 18 22 12 16 6" />
-                <polyline points="8 6 2 12 8 18" />
-              </svg>
-              <span>API Endpoints</span>
-              {apiTools.length > 0 && <span className="pill-counter">{apiTools.length}</span>}
-            </button>
-
-            <button
-              type="button"
-              className={`topbar-btn ${showAudit ? 'active' : ''}`}
-              onClick={() => void openAuditDrawer()}
-              title="Inspect API request audit trail"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-              <span>Activity</span>
-              {auditEntries.length > 0 && <span className="pill-counter">{auditEntries.length}</span>}
-            </button>
-
             <button type="button" className="topbar-btn primary-ghost" onClick={handleNewChat}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              <span>New Chat</span>
+              <span className="topbar-btn-label">New Chat</span>
             </button>
 
-            <button
-              type="button"
-              className="topbar-btn icon-only"
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-              title="Toggle Dark / Light theme"
-            >
-              {theme === 'dark' ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="5" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-              )}
-            </button>
-
-            <div className="topbar-divider" />
-
-            <div className="user-session-badge">
-              <span className="user-avatar">
-                {(me.name ?? me.email ?? me.sub ?? 'U').charAt(0).toUpperCase()}
-              </span>
-              <div className="user-meta">
-                <span className="user-name">{me.name ?? me.email ?? me.sub}</span>
-                {me.authMethod && (
-                  <span className="user-auth-protocol">{me.authMethod.replace(/_/g, ' ')}</span>
-                )}
-              </div>
+            <div className="topbar-icon-group">
               <button
                 type="button"
-                className="logout-icon-btn"
-                title="Switch Authentication / Disconnect"
-                onClick={() => {
-                  void fetch('/auth/logout', { method: 'POST' })
-                    .catch(() => {})
-                    .finally(() => {
-                      if (onLogout) onLogout();
-                      else window.location.href = '/';
-                    });
-                }}
+                className={`topbar-btn icon-only ${showCatalog ? 'active' : ''}`}
+                onClick={openCatalogDrawer}
+                title="API Endpoints — browse discovered tools"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="16 18 22 12 16 6" />
+                  <polyline points="8 6 2 12 8 18" />
+                </svg>
+                {apiTools.length > 0 && <span className="icon-badge">{apiTools.length}</span>}
+              </button>
+
+              <button
+                type="button"
+                className={`topbar-btn icon-only ${showAudit ? 'active' : ''}`}
+                onClick={() => void openAuditDrawer()}
+                title="Activity — API request audit trail"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+                {auditEntries.length > 0 && <span className="icon-badge">{auditEntries.length}</span>}
+              </button>
+            </div>
+
+            <div className="user-menu-wrap">
+              <button
+                type="button"
+                className={`user-menu-trigger ${showUserMenu ? 'active' : ''}`}
+                onClick={() => {
+                  setShowSidebar(false);
+                  setShowAudit(false);
+                  setShowCatalog(false);
+                  setShowUserMenu((v) => !v);
+                }}
+                title="Account &amp; preferences"
+              >
+                <span className="user-avatar">
+                  {(me.name ?? me.email ?? me.sub ?? 'U').charAt(0).toUpperCase()}
+                </span>
+                <svg
+                  className={`user-menu-chevron ${showUserMenu ? 'open' : ''}`}
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
                 </svg>
               </button>
+
+              {showUserMenu && (
+                <>
+                  <div className="menu-backdrop" onClick={() => setShowUserMenu(false)} />
+                  <div className="user-dropdown">
+                    <div className="user-dropdown-header">
+                      <span className="user-avatar large">
+                        {(me.name ?? me.email ?? me.sub ?? 'U').charAt(0).toUpperCase()}
+                      </span>
+                      <div className="user-dropdown-meta">
+                        <span className="user-dropdown-name">
+                          {me.name ?? me.email ?? me.sub}
+                        </span>
+                        {me.authMethod && (
+                          <span className="user-dropdown-auth">
+                            {me.authMethod.replace(/_/g, ' ')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="user-dropdown-items">
+                      <button
+                        type="button"
+                        className="dropdown-item"
+                        onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+                      >
+                        {theme === 'dark' ? (
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="5" />
+                            <line x1="12" y1="1" x2="12" y2="3" />
+                            <line x1="12" y1="21" x2="12" y2="23" />
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                            <line x1="1" y1="12" x2="3" y2="12" />
+                            <line x1="21" y1="12" x2="23" y2="12" />
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                          </svg>
+                        ) : (
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                          </svg>
+                        )}
+                        <span>Appearance</span>
+                        <span className="dropdown-item-value">
+                          {theme === 'dark' ? 'Dark' : 'Light'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="dropdown-item danger"
+                        onClick={handleLogout}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                          <polyline points="16 17 21 12 16 7" />
+                          <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        <span>Switch Auth / Sign out</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1490,7 +1552,7 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
                       {f.label}
                       {f.required ? ' *' : ''}
                     </span>
-                    {f.options ? (
+                    {f.options && f.options.length > 0 ? (
                       <select
                         value={slashFormValues[f.key] ?? ''}
                         onChange={(e) =>
