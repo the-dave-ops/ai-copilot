@@ -1,5 +1,6 @@
 import type { UIMessage } from 'ai';
 import { useState } from 'react';
+import type { ApiToolSummary } from './ChatPage';
 
 type ToolPart =
   | Extract<UIMessage['parts'][number], { type: `tool-${string}` }>
@@ -7,6 +8,7 @@ type ToolPart =
 
 interface Props {
   part: ToolPart;
+  toolMeta?: ApiToolSummary;
   onQuickPrompt?: (prompt: string) => void;
   dashboardBaseUrl?: string;
 }
@@ -185,6 +187,7 @@ function downloadCsv(filename: string, cols: string[], rows: Record<string, unkn
 
 export function ToolCard({
   part,
+  toolMeta,
   onQuickPrompt,
   dashboardBaseUrl,
 }: Props) {
@@ -466,10 +469,22 @@ export function ToolCard({
       ? (renderRichTable(part.output) ?? renderDetailCard(part.output))
       : null;
 
+  const inferredMethod =
+    toolMeta?.method ??
+    (/^(post|create|add|push)/i.test(name)
+      ? 'POST'
+      : /^(put|edit|update|set)/i.test(name)
+        ? 'PUT'
+        : /^(delete|remove)/i.test(name)
+          ? 'DELETE'
+          : 'GET');
+
   return (
     <details className="tool-card" dir="auto" open={Boolean(rich)}>
       <summary>
-        <span>🔧 {name}</span>
+        <span className={`http-badge ${inferredMethod.toLowerCase()}`}>{inferredMethod}</span>
+        <span className="tool-card-name">{name}</span>
+        {toolMeta?.path && <code className="tool-card-path">{toolMeta.path}</code>}
         {badge}
         {copiedText && <span className="copied-toast">Copied "{copiedText}"</span>}
         <span className="summary-actions" onClick={(e) => e.stopPropagation()}>
@@ -492,7 +507,7 @@ export function ToolCard({
                 setShowRaw((v) => !v);
               }}
             >
-              {showRaw ? 'Table' : 'JSON'}
+              {showRaw ? 'Data Grid' : 'Raw JSON'}
             </button>
           )}
         </span>

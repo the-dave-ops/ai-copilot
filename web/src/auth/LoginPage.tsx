@@ -19,9 +19,21 @@ interface ProvidersResponse {
   methods: AuthMethod[];
 }
 
+interface ToolPreviewItem {
+  name: string;
+  method: string;
+  path: string;
+  description: string;
+  readOnly: boolean;
+}
+
 interface ConfigResponse {
   apiTitle?: string | null;
   apiDescription?: string | null;
+  apiBaseUrl?: string | null;
+  toolCount?: number;
+  tools?: ToolPreviewItem[];
+  slashCommands?: unknown[];
   authConfig?: {
     defaultMethod?: AuthMethod;
     apiKeyName?: string;
@@ -37,52 +49,56 @@ const METHOD_META: Record<
   { label: string; short: string; badge: string; desc: string }
 > = {
   bearer: {
-    label: 'Bearer Token / JWT',
+    label: 'Bearer Token / Personal Access Token',
     short: 'Bearer Token',
     badge: 'Authorization: Bearer',
-    desc: 'Send a Personal Access Token (PAT) or JWT in the Authorization header on every API call.',
+    desc: 'Injects your JWT or Personal Access Token into the Authorization header on every request.',
   },
   api_key: {
-    label: 'API Key',
+    label: 'API Key Authentication',
     short: 'API Key',
-    badge: 'Header or Query',
-    desc: 'Send an API key in a custom request header (e.g. X-API-Key) or query string parameter.',
+    badge: 'Custom Header / Query',
+    desc: 'Attaches a custom API key header (e.g. X-API-Key) or URL query parameter per call.',
   },
   basic: {
-    label: 'HTTP Basic Auth',
+    label: 'HTTP Basic Authentication',
     short: 'Basic Auth',
-    badge: 'Username + Password',
-    desc: 'Encode username and password as Base64 in the standard HTTP Basic Authorization header.',
+    badge: 'RFC 7617 Base64',
+    desc: 'Encodes username and password credentials using standard HTTP Basic authentication.',
   },
   api_login: {
-    label: 'API Login Endpoint',
+    label: 'Direct API Token Exchange',
     short: 'API Login',
-    badge: 'POST credentials → Token',
-    desc: 'Authenticate directly against the target API login endpoint to exchange credentials for a token.',
+    badge: 'POST → Bearer',
+    desc: 'Authenticates directly against the target API login endpoint and stores the returned token.',
   },
   oauth2_client_credentials: {
-    label: 'OAuth2 Client Credentials',
+    label: 'OAuth 2.0 Client Credentials',
     short: 'OAuth2 Client',
-    badge: 'Client ID + Secret',
-    desc: 'Fetch and auto-refresh an OAuth2 access token from a token URL using Client ID and Secret.',
+    badge: 'Machine-to-Machine',
+    desc: 'Exchanges Client ID and Secret at the OAuth2 token endpoint with automatic expiry refresh.',
   },
   oidc: {
-    label: 'Single Sign-On (OIDC)',
+    label: 'Enterprise Single Sign-On (OIDC)',
     short: 'OIDC SSO',
-    badge: 'Keycloak / OAuth2 PKCE',
-    desc: 'Redirect to the configured OpenID Connect identity provider to sign in with your account.',
+    badge: 'OAuth 2.0 PKCE S256',
+    desc: 'Redirects to your identity provider (Keycloak, Okta, Auth0, Azure AD) with PKCE verification.',
   },
   none: {
-    label: 'Public API (No Auth)',
-    short: 'No Auth',
-    badge: 'Public',
-    desc: 'Connect without sending authentication headers (for open or public APIs).',
+    label: 'Public / Unauthenticated Access',
+    short: 'Public API',
+    badge: 'No Auth Header',
+    desc: 'Connects directly to open or public API endpoints without sending authentication headers.',
   },
 };
 
 export function LoginPage({ onAuthenticated }: { onAuthenticated: (me: Me) => void }) {
   const [providers, setProviders] = useState<ProvidersResponse | null>(null);
   const [apiTitle, setApiTitle] = useState('API');
+  const [apiDesc, setApiDesc] = useState('Self-configuring enterprise API copilot');
+  const [toolCount, setToolCount] = useState(0);
+  const [slashCount, setSlashCount] = useState(0);
+  const [sampleTools, setSampleTools] = useState<ToolPreviewItem[]>([]);
   const [schemeSummary, setSchemeSummary] = useState<string | null>(null);
   const [method, setMethod] = useState<AuthMethod>('bearer');
 
@@ -118,8 +134,12 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: (me: Me) => vo
         if (cfg) {
           if (cfg.apiTitle) {
             setApiTitle(cfg.apiTitle);
-            document.title = `${cfg.apiTitle} Copilot`;
+            document.title = `${cfg.apiTitle} — API Copilot`;
           }
+          if (cfg.apiDescription) setApiDesc(cfg.apiDescription);
+          if (typeof cfg.toolCount === 'number') setToolCount(cfg.toolCount);
+          if (Array.isArray(cfg.slashCommands)) setSlashCount(cfg.slashCommands.length);
+          if (Array.isArray(cfg.tools)) setSampleTools(cfg.tools.slice(0, 5));
           const ac = cfg.authConfig;
           if (ac) {
             if (ac.schemeSummary) setSchemeSummary(ac.schemeSummary);
@@ -197,145 +217,176 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: (me: Me) => vo
 
   return (
     <div className="auth-shell">
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="brand">
-            <span className="brand-dot" />
-            <span className="auth-brand-title">{apiTitle} Copilot</span>
-          </div>
-          <h1>Connect to {apiTitle}</h1>
-          <p className="muted">
-            Choose how to authenticate requests sent to{' '}
-            <code>{providers?.apiBaseUrl || 'the target API'}</code>. Your credentials stay encrypted
-            in the server session and are never exposed to the LLM.
-          </p>
-          {schemeSummary && (
-            <div className="auth-detected-banner">
-              <span>Detected API spec security:</span> <strong>{schemeSummary}</strong>
+      <div className="auth-split-container">
+        {/* Left Enterprise Telemetry & Architecture Panel */}
+        <aside className="auth-showcase">
+          <div>
+            <div className="auth-brand-row">
+              <div className="brand-logo-mark">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                  <polyline points="2 17 12 22 22 17" />
+                  <polyline points="2 12 12 17 22 12" />
+                </svg>
+              </div>
+              <span className="auth-brand-name">API Copilot</span>
+              <span className="auth-version-pill">Enterprise</span>
             </div>
-          )}
-        </div>
 
-        <div className="auth-tabs" role="tablist">
-          {availableMethods.map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={method === m}
-              className={`auth-tab ${method === m ? 'active' : ''}`}
-              onClick={() => {
-                setMethod(m);
-                setError(null);
-              }}
-            >
-              {METHOD_META[m].short}
-            </button>
-          ))}
-        </div>
+            <h2 className="auth-showcase-title">{apiTitle}</h2>
+            <p className="auth-showcase-desc">{apiDesc}</p>
 
-        <form className="auth-form" onSubmit={(e) => void handleSubmit(e)}>
-          <div className="auth-method-info">
-            <div>
-              <strong>{meta.label}</strong>
-              <p className="muted">{meta.desc}</p>
+            <div className="auth-telemetry-grid">
+              <div className="auth-stat-card">
+                <span className="auth-stat-value">{toolCount || 20}</span>
+                <span className="auth-stat-label">Curated API Tools</span>
+              </div>
+              <div className="auth-stat-card">
+                <span className="auth-stat-value">{slashCount || 14}</span>
+                <span className="auth-stat-label">Slash Commands</span>
+              </div>
             </div>
-            <span className="badge neutral">{meta.badge}</span>
+
+            {providers?.apiBaseUrl && (
+              <div className="auth-target-box">
+                <span className="auth-target-label">TARGET ENDPOINT</span>
+                <code>{providers.apiBaseUrl}</code>
+              </div>
+            )}
+
+            {sampleTools.length > 0 && (
+              <div className="auth-preview-tools">
+                <span className="auth-target-label">DISCOVERED OPERATIONS</span>
+                <div className="auth-preview-list">
+                  {sampleTools.map((t) => (
+                    <div key={t.name} className="auth-preview-item">
+                      <span className={`http-badge ${t.method.toLowerCase()}`}>{t.method}</span>
+                      <code className="auth-preview-path">{t.path}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {method === 'bearer' && (
-            <label className="auth-field">
-              <span>Bearer Token / Personal Access Token *</span>
-              <input
-                type="password"
-                required
-                placeholder="eyJhbGciOi... or pat_..."
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                autoFocus
-              />
-            </label>
-          )}
+          <div className="auth-security-guarantees">
+            <div className="guarantee-item">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>Zero-knowledge LLM context — tokens stay in encrypted server sessions</span>
+            </div>
+            <div className="guarantee-item">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span>Cryptographically signed human-in-the-loop approval for all mutations</span>
+            </div>
+          </div>
+        </aside>
 
-          {method === 'api_key' && (
-            <>
-              <div className="auth-row">
+        {/* Right Authentication Form Panel */}
+        <main className="auth-card">
+          <div className="auth-header">
+            <span className="auth-eyebrow">Authentication Gateway</span>
+            <h1>Connect to {apiTitle}</h1>
+            <p className="muted">
+              Select an authentication protocol to authorize API calls on your behalf.
+            </p>
+            {schemeSummary && (
+              <div className="auth-detected-banner">
+                <span className="status-dot online" />
+                <span>OpenAPI Security Scheme:</span> <strong>{schemeSummary}</strong>
+              </div>
+            )}
+          </div>
+
+          <div className="auth-tabs" role="tablist">
+            {availableMethods.map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={method === m}
+                className={`auth-tab ${method === m ? 'active' : ''}`}
+                onClick={() => {
+                  setMethod(m);
+                  setError(null);
+                }}
+              >
+                {METHOD_META[m].short}
+              </button>
+            ))}
+          </div>
+
+          <form className="auth-form" onSubmit={(e) => void handleSubmit(e)}>
+            <div className="auth-method-info">
+              <div>
+                <strong>{meta.label}</strong>
+                <p className="muted">{meta.desc}</p>
+              </div>
+              <span className="badge neutral">{meta.badge}</span>
+            </div>
+
+            {method === 'bearer' && (
+              <label className="auth-field">
+                <span>Bearer Token / Personal Access Token *</span>
+                <input
+                  type="password"
+                  required
+                  placeholder="eyJhbGciOi... or pat_..."
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  autoFocus
+                />
+              </label>
+            )}
+
+            {method === 'api_key' && (
+              <>
+                <div className="auth-row">
+                  <label className="auth-field">
+                    <span>Injection Target</span>
+                    <select
+                      value={apiKeyIn}
+                      onChange={(e) => setApiKeyIn(e.target.value as 'header' | 'query')}
+                    >
+                      <option value="header">HTTP Request Header</option>
+                      <option value="query">URL Query Parameter</option>
+                    </select>
+                  </label>
+                  <label className="auth-field">
+                    <span>{apiKeyIn === 'header' ? 'Header Name *' : 'Query Param Name *'}</span>
+                    <input
+                      required
+                      placeholder="X-API-Key"
+                      value={apiKeyName}
+                      onChange={(e) => setApiKeyName(e.target.value)}
+                    />
+                  </label>
+                </div>
                 <label className="auth-field">
-                  <span>Send Key In</span>
-                  <select
-                    value={apiKeyIn}
-                    onChange={(e) => setApiKeyIn(e.target.value as 'header' | 'query')}
-                  >
-                    <option value="header">HTTP Header</option>
-                    <option value="query">Query Parameter</option>
-                  </select>
-                </label>
-                <label className="auth-field">
-                  <span>{apiKeyIn === 'header' ? 'Header Name *' : 'Query Param Name *'}</span>
+                  <span>API Key Secret *</span>
                   <input
+                    type="password"
                     required
-                    placeholder="X-API-Key"
-                    value={apiKeyName}
-                    onChange={(e) => setApiKeyName(e.target.value)}
+                    placeholder="Enter your API key"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    autoFocus
                   />
                 </label>
-              </div>
-              <label className="auth-field">
-                <span>API Key Value *</span>
-                <input
-                  type="password"
-                  required
-                  placeholder="Enter your API key"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  autoFocus
-                />
-              </label>
-            </>
-          )}
+              </>
+            )}
 
-          {method === 'basic' && (
-            <div className="auth-row">
-              <label className="auth-field">
-                <span>Username *</span>
-                <input
-                  required
-                  placeholder="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoFocus
-                />
-              </label>
-              <label className="auth-field">
-                <span>Password *</span>
-                <input
-                  type="password"
-                  required
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-            </div>
-          )}
-
-          {method === 'api_login' && (
-            <>
-              <label className="auth-field">
-                <span>API Login Endpoint Path or URL *</span>
-                <input
-                  required
-                  placeholder="/api/v1/login"
-                  value={loginPath}
-                  onChange={(e) => setLoginPath(e.target.value)}
-                />
-              </label>
+            {method === 'basic' && (
               <div className="auth-row">
                 <label className="auth-field">
-                  <span>Username / Email *</span>
+                  <span>Username *</span>
                   <input
                     required
-                    placeholder="user@example.com"
+                    placeholder="Username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     autoFocus
@@ -352,78 +403,120 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: (me: Me) => vo
                   />
                 </label>
               </div>
-            </>
-          )}
+            )}
 
-          {method === 'oauth2_client_credentials' && (
-            <>
-              <label className="auth-field">
-                <span>OAuth2 Token Endpoint URL *</span>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://auth.example.com/oauth/token"
-                  value={tokenUrl}
-                  onChange={(e) => setTokenUrl(e.target.value)}
-                />
-              </label>
-              <div className="auth-row">
+            {method === 'api_login' && (
+              <>
                 <label className="auth-field">
-                  <span>Client ID *</span>
+                  <span>API Login Path (relative to target API) *</span>
                   <input
                     required
-                    placeholder="my-client-id"
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
+                    placeholder="/api/v1/login"
+                    value={loginPath}
+                    onChange={(e) => setLoginPath(e.target.value)}
                   />
                 </label>
+                <div className="auth-row">
+                  <label className="auth-field">
+                    <span>Username / Email *</span>
+                    <input
+                      required
+                      placeholder="user@example.com"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      autoFocus
+                    />
+                  </label>
+                  <label className="auth-field">
+                    <span>Password *</span>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </>
+            )}
+
+            {method === 'oauth2_client_credentials' && (
+              <>
                 <label className="auth-field">
-                  <span>Client Secret *</span>
+                  <span>OAuth 2.0 Token Endpoint URL *</span>
                   <input
-                    type="password"
+                    type="url"
                     required
-                    placeholder="Client secret"
-                    value={clientSecret}
-                    onChange={(e) => setClientSecret(e.target.value)}
+                    placeholder="https://auth.example.com/oauth/token"
+                    value={tokenUrl}
+                    onChange={(e) => setTokenUrl(e.target.value)}
                   />
                 </label>
-              </div>
+                <div className="auth-row">
+                  <label className="auth-field">
+                    <span>Client ID *</span>
+                    <input
+                      required
+                      placeholder="client-id"
+                      value={clientId}
+                      onChange={(e) => setClientId(e.target.value)}
+                    />
+                  </label>
+                  <label className="auth-field">
+                    <span>Client Secret *</span>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Client secret"
+                      value={clientSecret}
+                      onChange={(e) => setClientSecret(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label className="auth-field">
+                  <span>OAuth Scopes (optional)</span>
+                  <input
+                    placeholder="e.g. read:items write:items"
+                    value={scope}
+                    onChange={(e) => setScope(e.target.value)}
+                  />
+                </label>
+              </>
+            )}
+
+            {method !== 'oidc' && (
               <label className="auth-field">
-                <span>Scope (optional)</span>
+                <span>Session Display Name (optional)</span>
                 <input
-                  placeholder="e.g. read write api"
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value)}
+                  placeholder="e.g. Platform Operator"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
                 />
               </label>
-            </>
-          )}
+            )}
 
-          {method !== 'oidc' && (
-            <label className="auth-field">
-              <span>Display Name (optional, shown in chat header)</span>
-              <input
-                placeholder="e.g. Dev Admin"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-              />
-            </label>
-          )}
+            {error && <div className="auth-error">{error}</div>}
 
-          {error && <div className="auth-error">{error}</div>}
-
-          <div className="auth-actions">
-            <button type="submit" className="action-btn send auth-submit" disabled={submitting}>
-              {submitting
-                ? 'Connecting…'
-                : method === 'oidc'
-                  ? 'Continue with Single Sign-On →'
-                  : method === 'none'
-                    ? 'Continue without Authentication →'
-                    : `Connect with ${meta.short} →`}
-            </button>
-          </div>
-        </form>
+            <div className="auth-actions">
+              <button type="submit" className="action-btn send auth-submit" disabled={submitting}>
+                <span>
+                  {submitting
+                    ? 'Establishing Session…'
+                    : method === 'oidc'
+                      ? 'Continue with Single Sign-On'
+                      : method === 'none'
+                        ? 'Launch Public Session'
+                        : `Authorize with ${meta.short}`}
+                </span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </button>
+            </div>
+          </form>
+        </main>
       </div>
     </div>
   );

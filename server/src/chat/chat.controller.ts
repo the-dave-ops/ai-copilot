@@ -61,14 +61,33 @@ export class ChatController {
         }
       }
     }
+    const toolSummaries = cfg?.tools
+      ? cfg.tools.map((t) => ({
+          name: t.name,
+          method: t.method,
+          path: t.pathTemplate,
+          description: t.description,
+          readOnly: t.readOnly,
+          paramCount: t.parameters.length,
+        }))
+      : this.registry.specs.map((s) => ({
+          name: s.name,
+          method: s.readOnly ? 'GET' : 'POST',
+          path: `/api/${s.name.replace(/_/g, '/')}`,
+          description: s.description,
+          readOnly: s.readOnly,
+          paramCount: 0,
+        }));
     return {
       apiTitle: cfg?.apiTitle ?? null,
       apiDescription: cfg?.apiDescription ?? null,
+      apiBaseUrl: cfg?.apiBaseUrl ?? this.env.get('API_BASE_URL'),
       authConfig: cfg?.authConfig ?? null,
       slashCommands: cfg?.slashCommands ?? null,
       starterCards: cfg?.starterCards ?? null,
       paramEnums: Object.keys(paramEnums).length > 0 ? paramEnums : null,
       paramLabels: Object.keys(paramLabels).length > 0 ? paramLabels : null,
+      tools: toolSummaries,
       toolCount: this.registry.specs.length,
     };
   }

@@ -1,5 +1,6 @@
 import type { UIMessage } from 'ai';
 import { useState } from 'react';
+import type { ApiToolSummary } from './ChatPage';
 
 type ToolPart =
   | Extract<UIMessage['parts'][number], { type: `tool-${string}` }>
@@ -7,6 +8,7 @@ type ToolPart =
 
 interface Props {
   part: ToolPart;
+  toolMeta?: ApiToolSummary;
   fileNamesById?: Record<string, string>;
   extraEnumOptions?: Record<string, string[]>;
   extraLabels?: Record<string, string>;
@@ -62,6 +64,7 @@ function prettyToolTitle(name: string): string {
 
 export function ApprovalCard({
   part,
+  toolMeta,
   fileNamesById = {},
   extraEnumOptions,
   extraLabels,
@@ -134,12 +137,24 @@ export function ApprovalCard({
     return changed ? next : undefined;
   };
 
+  const inferredMethod =
+    toolMeta?.method ??
+    (/^(put|edit|update|set)/i.test(name)
+      ? 'PUT'
+      : /^(delete|remove)/i.test(name)
+        ? 'DELETE'
+        : 'POST');
+
   return (
     <div className="approval" dir="auto">
       <div className="approval-header">
         <div>
-          <span className="approval-eyebrow">Requires confirmation</span>
-          <div className="approval-title">{prettyToolTitle(name)}</div>
+          <span className="approval-eyebrow">Human-in-the-Loop Authorization Required</span>
+          <div className="approval-title-row">
+            <span className={`http-badge ${inferredMethod.toLowerCase()}`}>{inferredMethod}</span>
+            <span className="approval-title">{prettyToolTitle(name)}</span>
+          </div>
+          {toolMeta?.path && <code className="approval-path">{toolMeta.path}</code>}
         </div>
         <code>{name}</code>
       </div>

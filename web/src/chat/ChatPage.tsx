@@ -107,13 +107,24 @@ interface SlashCommandSpec {
   uiAction?: 'new' | 'theme' | 'activity' | 'threads';
 }
 
+export interface ApiToolSummary {
+  name: string;
+  method: string;
+  path: string;
+  description: string;
+  readOnly: boolean;
+  paramCount?: number;
+}
+
 interface DynamicApiConfigResponse {
   apiTitle?: string | null;
   apiDescription?: string | null;
+  apiBaseUrl?: string | null;
   slashCommands?: SlashCommandSpec[] | null;
   starterCards?: { title: string; desc: string; cmd: string }[] | null;
   paramEnums?: Record<string, string[]> | null;
   paramLabels?: Record<string, string> | null;
+  tools?: ApiToolSummary[] | null;
   toolCount?: number;
 }
 
@@ -525,6 +536,7 @@ function MessageParts({
   dashboardBaseUrl,
   extraEnumOptions,
   extraLabels,
+  toolsByName,
 }: {
   message: UIMessage;
   approve: ApproveFn;
@@ -532,6 +544,7 @@ function MessageParts({
   dashboardBaseUrl?: string;
   extraEnumOptions?: Record<string, string[]>;
   extraLabels?: Record<string, string>;
+  toolsByName?: Record<string, ApiToolSummary>;
 }) {
   return (
     <>
@@ -564,11 +577,14 @@ function MessageParts({
         }
         if (isToolPart(part)) {
           const approval = (part as { approval?: { id: string; approved?: boolean } }).approval;
+          const tName = part.type === 'dynamic-tool' ? part.toolName : part.type.slice('tool-'.length);
+          const meta = toolsByName?.[tName];
           return (
             <div key={i}>
               {approval && (
                 <ApprovalCard
                   part={part}
+                  toolMeta={meta}
                   fileNamesById={knownFileNamesById}
                   extraEnumOptions={extraEnumOptions}
                   extraLabels={extraLabels}
@@ -583,6 +599,7 @@ function MessageParts({
               {(!approval || approval.approved !== undefined) && (
                 <ToolCard
                   part={part}
+                  toolMeta={meta}
                   onQuickPrompt={onQuickPrompt}
                   dashboardBaseUrl={dashboardBaseUrl}
                 />
@@ -635,14 +652,18 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
   const [activeThreadId, setActiveThreadId] = useState<string>(() => makeThreadId());
   const [showSidebar, setShowSidebar] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [showJumpBottom, setShowJumpBottom] = useState(false);
   const [slashCommands, setSlashCommands] = useState<SlashCommandSpec[]>(SLASH_COMMANDS);
   const [starterCards, setStarterCards] = useState(STARTER_CARDS);
-  const [apiTitle, setApiTitle] = useState('GetApp');
+  const [apiTitle, setApiTitle] = useState('API');
   const [apiDesc, setApiDesc] = useState(
-    'Operate projects, releases, devices, maps, and groups using your own permissions.',
+    'Query endpoints, inspect records, and execute approval-gated operations using your own permissions.',
   );
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>('');
+  const [apiTools, setApiTools] = useState<ApiToolSummary[]>([]);
   const [extraEnums, setExtraEnums] = useState<Record<string, string[]>>({});
   const [extraLabels, setExtraLabels] = useState<Record<string, string>>({});
   const [theme, setTheme] = useState<'dark' | 'light'>(
@@ -684,9 +705,11 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
           if (cfgRes) {
             if (cfgRes.apiTitle) {
               setApiTitle(cfgRes.apiTitle);
-              document.title = `${cfgRes.apiTitle} Copilot`;
+              document.title = `${cfgRes.apiTitle} — API Copilot`;
             }
             if (cfgRes.apiDescription) setApiDesc(cfgRes.apiDescription);
+            if (cfgRes.apiBaseUrl) setApiBaseUrl(cfgRes.apiBaseUrl);
+            if (Array.isArray(cfgRes.tools)) setApiTools(cfgRes.tools);
             if (Array.isArray(cfgRes.slashCommands) && cfgRes.slashCommands.length > 0) {
               setSlashCommands(cfgRes.slashCommands.map(hydrateSlashCommand));
             }
@@ -731,14 +754,15 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
         e.preventDefault();
         textareaRef.current?.focus();
       } else if (e.key === 'Escape') {
-        if (showAudit) setShowAudit(false);
+        if (showCatalog) setShowCatalog(false);
+        else if (showAudit) setShowAudit(false);
         else if (showSidebar) setShowSidebar(false);
         else if (busy) void stop();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [busy, showAudit, showSidebar, stop]);
+  }, [busy, showAudit, showCatalog, showSidebar, stop]);
 
   const handleScroll = () => {
     const el = listRef.current;
@@ -756,6 +780,7 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
 
   const openAuditDrawer = async () => {
     setShowSidebar(false);
+    setShowCatalog(false);
     setShowAudit((v) => !v);
     try {
       const res = await fetch('/api/audit');
@@ -766,6 +791,12 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
     } catch {
       // ignore
     }
+  };
+
+  const openCatalogDrawer = () => {
+    setShowSidebar(false);
+    setShowAudit(false);
+    setShowCatalog((v) => !v);
   };
 
   const handleNewChat = () => {
@@ -950,6 +981,17 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
   };
 
   const isEmpty = messages.length === 0;
+  const toolsByName: Record<string, ApiToolSummary> = {};
+  for (const t of apiTools) {
+    toolsByName[t.name] = t;
+  }
+  const filteredCatalogTools = catalogSearch.trim()
+    ? apiTools.filter((t) =>
+        `${t.name} ${t.method} ${t.path} ${t.description}`
+          .toLowerCase()
+          .includes(catalogSearch.trim().toLowerCase()),
+      )
+    : apiTools;
 
   return (
     <div
@@ -974,61 +1016,194 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
           <div className="brand">
             <button
               type="button"
-              className="icon-btn"
+              className={`nav-btn ${showSidebar ? 'active' : ''}`}
               onClick={() => {
                 setShowAudit(false);
+                setShowCatalog(false);
                 setShowSidebar((v) => !v);
               }}
               title="Conversation threads"
             >
-              ☰ {threads.length > 0 ? threads.length : ''}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="15" y2="12" />
+                <line x1="3" y1="18" x2="18" y2="18" />
+              </svg>
+              {threads.length > 0 && <span className="nav-count">{threads.length}</span>}
             </button>
-            <span className="brand-dot" />
-            <span className="title">{apiTitle} Copilot</span>
+            <div className="brand-identity">
+              <div className="brand-logo-mark small">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                  <polyline points="2 17 12 22 22 17" />
+                  <polyline points="2 12 12 17 22 12" />
+                </svg>
+              </div>
+              <span className="title">{apiTitle}</span>
+              <span className="brand-tag">Copilot</span>
+            </div>
+            {apiBaseUrl && (
+              <span className="target-host-pill" title={apiBaseUrl}>
+                <span className="status-dot online" />
+                <span>{apiBaseUrl.replace(/^https?:\/\//, '')}</span>
+              </span>
+            )}
           </div>
-          <span className="user">
-            {me.name ?? me.email ?? me.sub}
-            {me.authMethod ? ` · ${me.authMethod.toUpperCase()}` : ''}
-          </span>
+
           <div className="topbar-actions">
             <button
               type="button"
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-              title="Switch Light / Dark theme"
+              className={`topbar-btn ${showCatalog ? 'active' : ''}`}
+              onClick={openCatalogDrawer}
+              title="Browse discovered API endpoints & tools"
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+              <span>API Endpoints</span>
+              {apiTools.length > 0 && <span className="pill-counter">{apiTools.length}</span>}
             </button>
-            <button type="button" onClick={() => void openAuditDrawer()}>
-              Activity {auditEntries.length ? `(${auditEntries.length})` : ''}
-            </button>
-            <button type="button" onClick={handleNewChat}>
-              + New chat
-            </button>
+
             <button
               type="button"
-              onClick={() => {
-                void fetch('/auth/logout', { method: 'POST' })
-                  .catch(() => {})
-                  .finally(() => {
-                    if (onLogout) onLogout();
-                    else window.location.href = '/';
-                  });
-              }}
+              className={`topbar-btn ${showAudit ? 'active' : ''}`}
+              onClick={() => void openAuditDrawer()}
+              title="Inspect API request audit trail"
             >
-              Switch Auth / Log out
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              <span>Activity</span>
+              {auditEntries.length > 0 && <span className="pill-counter">{auditEntries.length}</span>}
             </button>
+
+            <button type="button" className="topbar-btn primary-ghost" onClick={handleNewChat}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>New Chat</span>
+            </button>
+
+            <button
+              type="button"
+              className="topbar-btn icon-only"
+              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              title="Toggle Dark / Light theme"
+            >
+              {theme === 'dark' ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
+
+            <div className="topbar-divider" />
+
+            <div className="user-session-badge">
+              <span className="user-avatar">
+                {(me.name ?? me.email ?? me.sub ?? 'U').charAt(0).toUpperCase()}
+              </span>
+              <div className="user-meta">
+                <span className="user-name">{me.name ?? me.email ?? me.sub}</span>
+                {me.authMethod && (
+                  <span className="user-auth-protocol">{me.authMethod.replace(/_/g, ' ')}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="logout-icon-btn"
+                title="Switch Authentication / Disconnect"
+                onClick={() => {
+                  void fetch('/auth/logout', { method: 'POST' })
+                    .catch(() => {})
+                    .finally(() => {
+                      if (onLogout) onLogout();
+                      else window.location.href = '/';
+                    });
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
-      {(showSidebar || showAudit) && (
+      {(showSidebar || showAudit || showCatalog) && (
         <div
           className="drawer-backdrop"
           onClick={() => {
             setShowSidebar(false);
             setShowAudit(false);
+            setShowCatalog(false);
           }}
         />
+      )}
+
+      {showCatalog && (
+        <aside className="audit-slideover catalog-slideover">
+          <div className="audit-header">
+            <div>
+              <strong>Discovered API Endpoints</strong>
+              <div className="muted">{apiTools.length} active tools registered by startup agent</div>
+            </div>
+            <button type="button" onClick={() => setShowCatalog(false)}>
+              ✕
+            </button>
+          </div>
+          <div className="catalog-search-wrap">
+            <input
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+              placeholder="Filter endpoints by method, path, or name…"
+            />
+          </div>
+          <div className="audit-list">
+            {filteredCatalogTools.map((t) => (
+              <div key={t.name} className="catalog-endpoint-card">
+                <div className="catalog-endpoint-top">
+                  <span className={`http-badge ${t.method.toLowerCase()}`}>{t.method}</span>
+                  <code className="catalog-path">{t.path}</code>
+                  <span className={`badge ${t.readOnly ? 'ok' : 'wait'}`}>
+                    {t.readOnly ? 'Read' : 'Approval'}
+                  </span>
+                </div>
+                <div className="catalog-tool-desc">{t.description}</div>
+                <div className="catalog-endpoint-footer">
+                  <code className="catalog-tool-id">{t.name}</code>
+                  <button
+                    type="button"
+                    className="row-action-btn"
+                    onClick={() => {
+                      setShowCatalog(false);
+                      sendPromptText(`Run ${t.name}: ${t.description}`);
+                    }}
+                  >
+                    Invoke →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
       )}
 
       {showSidebar && (
@@ -1135,6 +1310,13 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
       <div className="messages" ref={listRef} onScroll={handleScroll}>
         {isEmpty && (
           <div className="center-note">
+            <div className="hero-badge-row">
+              <span className="hero-pill">
+                <span className="status-dot online" />
+                <span>{apiTools.length || 20} Endpoints Ready</span>
+              </span>
+              <span className="hero-pill subtle">Human-in-the-Loop Protected</span>
+            </div>
             <h2>How can I help with {apiTitle} today?</h2>
             <p className="muted">{apiDesc}</p>
           </div>
@@ -1164,6 +1346,7 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
                 dashboardBaseUrl={me.dashboardBaseUrl}
                 extraEnumOptions={extraEnums}
                 extraLabels={extraLabels}
+                toolsByName={toolsByName}
               />
               {msgActions.length > 0 && (
                 <div className="msg-suggested-actions">
@@ -1510,24 +1693,32 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
 
         {isEmpty && (
           <div className="starter-grid">
-            {starterCards.map((card) => (
-              <button
-                key={card.cmd}
-                type="button"
-                className="starter-card"
-                onClick={() => {
-                  const spec = slashCommands.find((s) => s.cmd === card.cmd);
-                  if (spec) applySlashCommand(spec);
-                  else sendPromptText(card.desc || card.title);
-                }}
-              >
-                <div className="starter-card-body">
-                  <div className="starter-card-title">{card.title}</div>
-                  <div className="starter-card-desc">{card.desc}</div>
-                </div>
-                <span className="starter-card-arrow">→</span>
-              </button>
-            ))}
+            {starterCards.map((card) => {
+              const matchedSlash = slashCommands.find((s) => s.cmd === card.cmd);
+              const isWrite = matchedSlash?.category === 'Write';
+              return (
+                <button
+                  key={card.cmd}
+                  type="button"
+                  className="starter-card"
+                  onClick={() => {
+                    if (matchedSlash) applySlashCommand(matchedSlash);
+                    else sendPromptText(card.desc || card.title);
+                  }}
+                >
+                  <div className="starter-card-body">
+                    <div className="starter-card-top">
+                      <span className="starter-card-title">{card.title}</span>
+                      <code className={`starter-cmd-chip ${isWrite ? 'write' : 'read'}`}>
+                        {card.cmd}
+                      </code>
+                    </div>
+                    <div className="starter-card-desc">{card.desc}</div>
+                  </div>
+                  <span className="starter-card-arrow">→</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
