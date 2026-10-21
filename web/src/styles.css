@@ -543,29 +543,6 @@ code, pre {
   padding: 8px 8px 4px;
 }
 
-.hero-badge-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.hero-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 11px;
-  border-radius: 99px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  font-size: 0.74rem;
-  font-weight: 500;
-  color: var(--text);
-}
-.hero-pill.subtle {
-  color: var(--muted);
-}
-
 .center-note h2 {
   margin: 0 0 8px;
   font-weight: 700;

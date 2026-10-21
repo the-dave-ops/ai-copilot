@@ -1372,13 +1372,6 @@ export function ChatPage({ me, onLogout }: { me: Me; onLogout?: () => void }) {
       <div className="messages" ref={listRef} onScroll={handleScroll}>
         {isEmpty && (
           <div className="center-note">
-            <div className="hero-badge-row">
-              <span className="hero-pill">
-                <span className="status-dot online" />
-                <span>{apiTools.length || 20} Endpoints Ready</span>
-              </span>
-              <span className="hero-pill subtle">Human-in-the-Loop Protected</span>
-            </div>
             <h2>How can I help with {apiTitle} today?</h2>
             <p className="muted">{apiDesc}</p>
           </div>
